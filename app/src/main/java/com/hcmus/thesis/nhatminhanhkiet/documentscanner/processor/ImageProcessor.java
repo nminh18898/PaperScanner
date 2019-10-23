@@ -9,6 +9,7 @@ import org.opencv.android.Utils;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfByte;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
@@ -123,13 +124,15 @@ public class ImageProcessor {
         byte[] bytes = new byte[buffer.remaining()];
         buffer.get(bytes);
 
-        Mat mat = new Mat(new Size(image.getWidth(), image.getHeight()), CvType.CV_8U);
+        //Mat mat = new Mat(new Size(image.getWidth(), image.getHeight()), CvType.CV_8U);
+        Mat mat = new Mat(new Size(image.getHeight(), image.getWidth()), CvType.CV_8U);
         mat.put(0, 0, bytes);
 
-        Mat pic = Imgcodecs.imdecode(mat, Imgcodecs.IMREAD_UNCHANGED);
-        Core.rotate(pic, pic, Core.ROTATE_90_CLOCKWISE);
+        Mat pic = Imgcodecs.imdecode(new MatOfByte(bytes), Imgcodecs.IMREAD_UNCHANGED);
+        //Mat pic = Imgcodecs.imdecode(mat, Imgcodecs.IMREAD_UNCHANGED);
+        //Core.rotate(pic, pic, Core.ROTATE_90_CLOCKWISE);
         mat.release();
-        Corners corners = processPicture(mat);
+        Corners corners = processPicture(pic);
         Imgproc.cvtColor(pic, pic, Imgproc.COLOR_RGB2BGRA);
         Log.e("TestCorner", "Size: " + corners.size);
         Log.e("TestCorner", corners.corners.get(0).x +":" + corners.corners.get(0).y);
@@ -139,42 +142,6 @@ public class ImageProcessor {
 
         return corners;
     }
-
-    public Corners processImage(Bitmap image){
-
-        /*val pictureSize = p1?.parameters?.pictureSize
-        Log.i(TAG, "picture size: " + pictureSize.toString())
-        val mat = Mat(Size(pictureSize?.width?.toDouble() ?: 1920.toDouble(),
-                pictureSize?.height?.toDouble() ?: 1080.toDouble()), CvType.CV_8U)
-        mat.put(0, 0, p0)
-        val pic = Imgcodecs.imdecode(mat, Imgcodecs.CV_LOAD_IMAGE_UNCHANGED)
-        Core.rotate(pic, pic, Core.ROTATE_90_CLOCKWISE)
-        mat.release()
-        SourceManager.corners = processPicture(pic)
-        Imgproc.cvtColor(pic, pic, Imgproc.COLOR_RGB2BGRA)
-        SourceManager.pic = pic
-        context.startActivity(Intent(context, CropActivity::class.java))
-        busy = false*/
-
-        byte[] bytes = convertBitmapToByteArray(image);
-
-        Mat mat = new Mat(new Size(image.getWidth(), image.getHeight()), CvType.CV_8U);
-        mat.put(0, 0, bytes);
-
-        Mat pic = Imgcodecs.imdecode(mat, Imgcodecs.IMREAD_UNCHANGED);
-        Core.rotate(pic, pic, Core.ROTATE_90_CLOCKWISE);
-        mat.release();
-        Corners corners = processPicture(mat);
-        Imgproc.cvtColor(pic, pic, Imgproc.COLOR_RGB2BGRA);
-        Log.e("TestCorner", "Size: " + corners.size);
-        Log.e("TestCorner", corners.corners.get(0).x +":" + corners.corners.get(0).y);
-        Log.e("TestCorner", corners.corners.get(1).x +":" + corners.corners.get(1).y);
-        Log.e("TestCorner", corners.corners.get(2).x +":" + corners.corners.get(2).y);
-        Log.e("TestCorner", corners.corners.get(3).x +":" + corners.corners.get(3).y);
-
-        return corners;
-    }
-
 
     private byte[] convertBitmapToByteArray(Bitmap bitmap)
     {

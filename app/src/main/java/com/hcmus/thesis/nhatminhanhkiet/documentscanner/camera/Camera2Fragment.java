@@ -185,6 +185,7 @@ public class Camera2Fragment extends Fragment
 
             Image image = reader.acquireNextImage();
             imageProcessor.processImage(image);
+
         }
     };
 
