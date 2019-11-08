@@ -6,6 +6,7 @@ import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.ImageFormat;
@@ -31,11 +32,14 @@ import android.os.HandlerThread;
 import android.util.Log;
 import android.util.Size;
 import android.util.SparseIntArray;
+import android.view.Display;
 import android.view.LayoutInflater;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
+import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -45,6 +49,7 @@ import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.Fragment;
 
 import com.hcmus.thesis.nhatminhanhkiet.documentscanner.R;
+import com.hcmus.thesis.nhatminhanhkiet.documentscanner.crop.CropActivity;
 import com.hcmus.thesis.nhatminhanhkiet.documentscanner.processor.ImageProcessor;
 
 import java.io.File;
@@ -108,8 +113,11 @@ public class Camera2Fragment extends Fragment
 
     private boolean mFlashSupported;
     private int mSensorOrientation;
+    private boolean mAutoFocusSupported;
 
     ImageProcessor imageProcessor;
+
+    ProgressBar pbLoading;
 
     /**
      * Handle TextureView life cycle events
@@ -181,11 +189,14 @@ public class Camera2Fragment extends Fragment
 
         @Override
         public void onImageAvailable(ImageReader reader) {
-            //mBackgroundHandler.post(new ImageSaver(reader.acquireNextImage(), mFile));
-
             Image image = reader.acquireNextImage();
-            imageProcessor.processImage(image);
 
+
+            ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+            byte[] bytes = new byte[buffer.remaining()];
+            buffer.get(bytes);
+
+            imageProcessor.processImage(bytes, image.getWidth(), image.getHeight());
         }
     };
 
@@ -313,6 +324,8 @@ public class Camera2Fragment extends Fragment
     public void onViewCreated(final View view, Bundle savedInstanceState) {
         view.findViewById(R.id.picture).setOnClickListener(this);
         mTextureView = (AutoFitTextureView) view.findViewById(R.id.texture);
+        pbLoading = view.findViewById(R.id.pbLoading);
+        pbLoading.setVisibility(View.GONE);
     }
 
     @Override
@@ -325,7 +338,7 @@ public class Camera2Fragment extends Fragment
     @Override
     public void onAttach(Context context) {
         super.onAttach(context);
-        imageProcessor = new ImageProcessor();
+        imageProcessor = new ImageProcessor(context);
     }
 
     @Override
@@ -368,10 +381,14 @@ public class Camera2Fragment extends Fragment
                     continue;
                 }
 
+
                 // For still image captures, we use the largest available size.
                 Size largest = Collections.max(
                         Arrays.asList(map.getOutputSizes(ImageFormat.JPEG)),
                         new CompareSizesByArea());
+
+                largest = new Size(4096, 2304);
+
                 mImageReader = ImageReader.newInstance(largest.getWidth(), largest.getHeight(),
                         ImageFormat.JPEG, /*maxImages*/2);
                 mImageReader.setOnImageAvailableListener(
@@ -400,8 +417,40 @@ public class Camera2Fragment extends Fragment
                         Log.e(TAG, "Display rotation is invalid: " + displayRotation);
                 }
 
+                /**
+                 *
+
                 Point displaySize = new Point();
+
                 activity.getWindowManager().getDefaultDisplay().getSize(displaySize);
+                Display display = ((WindowManager) getActivity().getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay();
+                int rotatedPreviewWidth = width;
+                int rotatedPreviewHeight = height;
+                int maxPreviewWidth = displaySize.x;
+                int maxPreviewHeight = displaySize.y;
+
+                if (swappedDimensions) {
+                    rotatedPreviewWidth = height;
+                    rotatedPreviewHeight = width;
+                    maxPreviewWidth = displaySize.y;
+                    maxPreviewHeight = displaySize.x;
+                }
+
+                if (maxPreviewWidth > MAX_PREVIEW_WIDTH) {
+                    maxPreviewWidth = MAX_PREVIEW_WIDTH;
+                }
+
+                if (maxPreviewHeight > MAX_PREVIEW_HEIGHT) {
+                    maxPreviewHeight = MAX_PREVIEW_HEIGHT;
+                }
+
+                 */
+
+                Point displaySize = new Point();
+
+                //.getWindowManager().getDefaultDisplay().getSize(displaySize);
+                Display display = ((WindowManager) getActivity().getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay();
+                display.getRealSize(displaySize);
                 int rotatedPreviewWidth = width;
                 int rotatedPreviewHeight = height;
                 int maxPreviewWidth = displaySize.x;
@@ -550,7 +599,7 @@ public class Camera2Fragment extends Fragment
                                 mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
                                         CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
                                 // Flash is automatically enabled when necessary.
-                                setAutoFlash(mPreviewRequestBuilder);
+                                //setAutoFlash(mPreviewRequestBuilder);
 
                                 // Finally, we start displaying the camera preview.
                                 mPreviewRequest = mPreviewRequestBuilder.build();
@@ -657,8 +706,8 @@ public class Camera2Fragment extends Fragment
                 public void onCaptureCompleted(@NonNull CameraCaptureSession session,
                                                @NonNull CaptureRequest request,
                                                @NonNull TotalCaptureResult result) {
-                    showToast("Saved: " + mFile);
-                    Log.d(TAG, mFile.toString());
+                    //showToast("Saved: " + mFile);
+                    Log.d(TAG, "onCaptureCompleted");
                     unlockFocus();
                 }
             };

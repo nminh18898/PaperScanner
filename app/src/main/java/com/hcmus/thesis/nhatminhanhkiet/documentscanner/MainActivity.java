@@ -1,39 +1,43 @@
 package com.hcmus.thesis.nhatminhanhkiet.documentscanner;
 
 import android.Manifest;
-import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.content.res.AssetFileDescriptor;
-import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.net.Uri;
 import android.os.Bundle;
-
-import com.google.android.material.floatingactionbutton.FloatingActionButton;
-import com.google.android.material.snackbar.Snackbar;
-import com.hcmus.thesis.nhatminhanhkiet.documentscanner.camera.CameraActivity;
-import com.hcmus.thesis.nhatminhanhkiet.documentscanner.processor.ImageProcessor;
+import android.os.Environment;
+import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.app.ActivityCompat;
+import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
-import android.provider.MediaStore;
-import android.util.Log;
-import android.view.View;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.widget.Toast;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.hcmus.thesis.nhatminhanhkiet.documentscanner.camera.CameraActivity;
+import com.hcmus.thesis.nhatminhanhkiet.documentscanner.crop.CropActivity;
+import com.hcmus.thesis.nhatminhanhkiet.documentscanner.view.ImageFullscreen;
+import com.hcmus.thesis.nhatminhanhkiet.documentscanner.view.ImageInfo;
+import com.hcmus.thesis.nhatminhanhkiet.documentscanner.view.ImageListAdapter;
+import com.hcmus.thesis.nhatminhanhkiet.documentscanner.view.ImageListItemClickListener;
 
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
-import org.opencv.core.Mat;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import java.io.File;
+import java.io.FilenameFilter;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -48,6 +52,12 @@ public class MainActivity extends AppCompatActivity {
     private static boolean isPermissionGranted = false;
 
     FloatingActionButton fabOpenCamera;
+
+    RecyclerView rvImageList;
+
+    ImageListAdapter adapter;
+    ArrayList<String> imagePathList;
+    ArrayList<ImageInfo> imageInfoList;
 
     private BaseLoaderCallback  mLoaderCallback = new BaseLoaderCallback(this) {
         @Override
@@ -79,6 +89,7 @@ public class MainActivity extends AppCompatActivity {
         setupView();
         checkOpenCvSetup();
         checkPermission();
+
     }
 
     void setupView(){
@@ -90,6 +101,59 @@ public class MainActivity extends AppCompatActivity {
                 startActivity(intent);
             }
         });
+
+        rvImageList = findViewById(R.id.rvImageList);
+        rvImageList.setLayoutManager(new LinearLayoutManager(this));
+        rvImageList.addOnItemTouchListener(new ImageListItemClickListener(this, rvImageList, new ImageListItemClickListener.OnItemClickListener() {
+            @Override
+            public void onItemClick(View view, int position) {
+                Intent intent = new Intent(MainActivity.this, ImageFullscreen.class);
+                intent.putExtra("file_path", imageInfoList.get(position).filePath);
+                startActivity(intent);
+            }
+
+            @Override
+            public void onItemLongClick(View view, int position) {
+
+            }
+        }));
+    }
+
+    private ArrayList<ImageInfo> getImageInfo(List<String> paths){
+        ArrayList<ImageInfo> imageInfoList = new ArrayList<>();
+
+        for(int i=0;i<paths.size();i++){
+            File file = new File(paths.get(i));
+            if(file != null) {
+                ImageInfo imageInfo = new ImageInfo();
+                imageInfo.fileName = file.getName();
+                imageInfo.filePath = paths.get(i);
+
+                SimpleDateFormat simpleDateFormat =  new SimpleDateFormat("dd/MM/yyyy");
+                Date lastModDate = new Date(file.lastModified());
+                imageInfo.dateCreated = simpleDateFormat.format(lastModDate);
+
+                imageInfo.fileSize = String.valueOf(file.length());
+
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inJustDecodeBounds = true;
+                BitmapFactory.decodeFile(paths.get(i), options);
+                imageInfo.imageHeight = options.outHeight;
+                imageInfo.imageWidth = options.outWidth;
+
+                imageInfoList.add(imageInfo);
+            }
+        }
+        return imageInfoList;
+    }
+
+    private void createImageList() {
+        imagePathList =  getImagePath(retrieveImageFile());
+        imageInfoList = getImageInfo(imagePathList);
+
+
+        adapter = new ImageListAdapter(this, imageInfoList);
+        rvImageList.setAdapter(adapter);
     }
 
     void checkOpenCvSetup(){
@@ -141,12 +205,11 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-
-
     @Override
     public void onResume()
     {
         super.onResume();
+        createImageList();
 
     }
 
@@ -171,6 +234,30 @@ public class MainActivity extends AppCompatActivity {
 
         return super.onOptionsItemSelected(item);
     }
+
+    public File[] retrieveImageFile(){
+        File folder = new File(Environment
+                .getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM) + "/KimiScanner/");
+        folder.mkdirs();
+        File[] allFiles = folder.listFiles(new FilenameFilter() {
+            public boolean accept(File dir, String name) {
+                return (name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png"));
+            }
+        });
+        return allFiles;
+    }
+
+    public ArrayList<String> getImagePath(File[] files){
+        ArrayList<String> filePathList = new ArrayList<>();
+        for(int i =0;i<files.length;i++){
+            filePathList.add(files[i].getPath());
+        }
+        return filePathList;
+    }
+
+
+
+
 
 
 }

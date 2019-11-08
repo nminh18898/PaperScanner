@@ -6,4 +6,8 @@
     <string name="description_info">Info</string>
     <string name="request_permission">This sample needs camera permission.</string>
     <string name="camera_error">This device doesn\'t support Camera2 API.</string>
+    <string name="crop">Crop</string>
+    <string name="export_complete">Export complete</string>
+    <string name="file_not_found">File not found</string>
+    <string name="delete_successfully">Delete successfully</string>
 </resources>

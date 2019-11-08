@@ -1,8 +1,13 @@
 package com.hcmus.thesis.nhatminhanhkiet.documentscanner.processor;
 
+import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.media.Image;
 import android.util.Log;
+
+import com.hcmus.thesis.nhatminhanhkiet.documentscanner.SourceManager;
+import com.hcmus.thesis.nhatminhanhkiet.documentscanner.crop.CropActivity;
 
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
@@ -22,13 +27,19 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class ImageProcessor {
 
-    public ImageProcessor() {
+    Context context;
+    public ImageProcessor(Context context) {
+        this.context = context;
+
         if (!OpenCVLoader.initDebug()) {
             Log.e("InitOpenCV", "Load OpenCV error");
+
         }
         else {
             Log.e("InitOpenCV", "Load OpenCV successfully");
@@ -105,7 +116,7 @@ public class ImageProcessor {
         return null;
     }
 
-    public Corners processImage(Image image){
+    public void processImage(Image image){
 
         /*val pictureSize = p1?.parameters?.pictureSize
         Log.i(TAG, "picture size: " + pictureSize.toString())
@@ -134,34 +145,58 @@ public class ImageProcessor {
         mat.release();
         Corners corners = processPicture(pic);
         Imgproc.cvtColor(pic, pic, Imgproc.COLOR_RGB2BGRA);
-        Log.e("TestCorner", "Size: " + corners.size);
-        Log.e("TestCorner", corners.corners.get(0).x +":" + corners.corners.get(0).y);
-        Log.e("TestCorner", corners.corners.get(1).x +":" + corners.corners.get(1).y);
-        Log.e("TestCorner", corners.corners.get(2).x +":" + corners.corners.get(2).y);
-        Log.e("TestCorner", corners.corners.get(3).x +":" + corners.corners.get(3).y);
-
-        return corners;
+        /*SourceManager sourceManager = new SourceManager();
+        sourceManager.Companion.setCorners(corners);
+        sourceManager.Companion.setPic(pic);*/
     }
 
-    private byte[] convertBitmapToByteArray(Bitmap bitmap)
+    public void processImage(byte[] bytes, int width, int height){
+
+        /*val pictureSize = p1?.parameters?.pictureSize
+        Log.i(TAG, "picture size: " + pictureSize.toString())
+        val mat = Mat(Size(pictureSize?.width?.toDouble() ?: 1920.toDouble(),
+                pictureSize?.height?.toDouble() ?: 1080.toDouble()), CvType.CV_8U)
+        mat.put(0, 0, p0)
+        val pic = Imgcodecs.imdecode(mat, Imgcodecs.CV_LOAD_IMAGE_UNCHANGED)
+        Core.rotate(pic, pic, Core.ROTATE_90_CLOCKWISE)
+        mat.release()
+        SourceManager.corners = processPicture(pic)
+        Imgproc.cvtColor(pic, pic, Imgproc.COLOR_RGB2BGRA)
+        SourceManager.pic = pic
+        context.startActivity(Intent(context, CropActivity::class.java))
+        busy = false*/
+
+        //Mat mat = new Mat(new Size(image.getWidth(), image.getHeight()), CvType.CV_8U);
+        Mat mat = new Mat(new Size(height, width), CvType.CV_8U);
+        mat.put(0, 0, bytes);
+
+        Mat pic = Imgcodecs.imdecode(new MatOfByte(bytes), Imgcodecs.IMREAD_UNCHANGED);
+        //Core.rotate(pic, pic, Core.ROTATE_90_CLOCKWISE);
+        mat.release();
+        Corners corners = processPicture(pic);
+
+        boolean isDuplicate = isCornersListDuplicates(corners);
+
+        Imgproc.cvtColor(pic, pic, Imgproc.COLOR_RGB2BGRA);
+        SourceManager sourceManager = new SourceManager();
+        sourceManager.Companion.setCorners(corners);
+        sourceManager.Companion.setPic(pic);
+
+        Intent intent = new Intent(context, CropActivity.class);
+        context.startActivity(intent);
+    }
+
+
+    public boolean isCornersListDuplicates(Corners corners)
     {
-        /*//Scale down the bitmap if the size of file is greater than 1 MB
-        if (new File(imagePath).length() >= MEGABYTE)
-        {
-            final float densityMultiplier = getActivity().getResources().getDisplayMetrics().density;
+        final Set<Point> set = new HashSet<>();
 
-            int h= (int) (SCALE_HEIGHT*densityMultiplier);
-            int w= (int) (h * bitmap.getWidth()/((double) bitmap.getHeight()));
-
-            bitmap  = Bitmap.createScaledBitmap(bitmap, w, h, true);
-        }*/
-
-        //Change to byte array
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-        bitmap.compress(Bitmap.CompressFormat.PNG, 0, stream);
-        byte[] byteArrayOfBitmap = stream.toByteArray();
-
-        return byteArrayOfBitmap;
+        for(int i=0;i<corners.corners.size();i++){
+            if(set.add(corners.corners.get(i)) == false){
+                return true;
+            }
+        }
+        return false;
     }
 
     public Bitmap enhancePicture(Bitmap src){
@@ -260,4 +295,18 @@ public class ImageProcessor {
 
         return Arrays.asList(p0, p1, p2, p3);
     }
+
+    public Bitmap convertToGrayscale(Bitmap srcBitmap){
+        Mat srcMat= new Mat();
+        Utils.bitmapToMat(srcBitmap, srcMat);
+
+        Mat destMat = new Mat();
+        Imgproc.cvtColor(srcMat, destMat, Imgproc.COLOR_RGB2GRAY);
+
+        Bitmap destBitmap = Bitmap.createBitmap(destMat.width(), destMat.height(), Bitmap.Config.ARGB_8888);;
+        Utils.matToBitmap(destMat, destBitmap);
+        Log.e("Test", "test");
+        return destBitmap;
+    }
+
 }
