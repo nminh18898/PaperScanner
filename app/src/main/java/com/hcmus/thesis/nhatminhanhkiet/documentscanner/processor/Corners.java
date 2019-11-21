@@ -14,4 +14,8 @@ public class Corners {
         this.corners = corners;
         this.size = size;
     }
+
+    public void setCorners(List<Point> corners){
+        this.corners = corners;
+    }
 }

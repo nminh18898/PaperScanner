@@ -1,10 +1,12 @@
 package com.hcmus.thesis.nhatminhanhkiet.documentscanner.crop;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
@@ -14,6 +16,13 @@ import android.widget.Button;
 import android.widget.ImageView;
 
 import com.bumptech.glide.Glide;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.firebase.ml.vision.FirebaseVision;
+import com.google.firebase.ml.vision.common.FirebaseVisionImage;
+import com.google.firebase.ml.vision.objects.FirebaseVisionObject;
+import com.google.firebase.ml.vision.objects.FirebaseVisionObjectDetector;
+import com.google.firebase.ml.vision.objects.FirebaseVisionObjectDetectorOptions;
 import com.hcmus.thesis.nhatminhanhkiet.documentscanner.R;
 import com.hcmus.thesis.nhatminhanhkiet.documentscanner.SourceManager;
 import com.hcmus.thesis.nhatminhanhkiet.documentscanner.processor.Corners;
@@ -23,12 +32,21 @@ import com.hcmus.thesis.nhatminhanhkiet.documentscanner.view.ImageFullscreen;
 
 import org.opencv.android.Utils;
 import org.opencv.core.Mat;
+import org.opencv.core.Point;
+import org.opencv.core.Size;
+import org.opencv.imgproc.Imgproc;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public class CropActivity extends AppCompatActivity {
 
@@ -105,17 +123,87 @@ public class CropActivity extends AppCompatActivity {
 
 
     private void init(){
-        paper_rect.onCorners2Crop(corners, picture.size());
-
         Bitmap bitmap = Bitmap.createBitmap(picture.width(), picture.height(), Bitmap.Config.ARGB_8888);
         Utils.matToBitmap(picture, bitmap, true);
 
-        //Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, paper.getWidth(), paper.getHeight(), true);
+        if(corners == null || isCornersListDuplicates(corners)){
+            processImageWithFirebase(bitmap);
+            return;
+        }
+
+        paper_rect.onCorners2Crop(corners, picture.size());
 
         Glide.with(this).load(bitmap).into(paper);
-        //paper.setImageBitmap(bitmap);
     }
 
+    public boolean isCornersListDuplicates(Corners corners)
+    {
+        final Set<Point> set = new HashSet<>();
+
+        for(int i=0;i<corners.corners.size();i++){
+            if(set.add(corners.corners.get(i)) == false){
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void processImageWithFirebase(final Bitmap bitmap){
+        final List<Point> points = new ArrayList<>();
+
+        FirebaseVisionImage visionImage = FirebaseVisionImage.fromBitmap(bitmap);
+
+        FirebaseVisionObjectDetector objectDetector = createFirebaseVisionObjectDetector();
+        objectDetector.processImage(visionImage).addOnSuccessListener(
+                new OnSuccessListener<List<FirebaseVisionObject>>() {
+                    @Override
+                    public void onSuccess(List<FirebaseVisionObject> firebaseVisionObjects) {
+                        Corners firebaseCorners = corners;
+
+                        if(firebaseVisionObjects.size() != 0){
+                            FirebaseVisionObject obj = firebaseVisionObjects.get(0);
+
+                            Rect bounds = obj.getBoundingBox();
+
+                            points.add(new Point(bounds.left, bounds.top));
+                            points.add(new Point(bounds.right, bounds.top));
+                            points.add(new Point(bounds.right, bounds.bottom));
+                            points.add(new Point(bounds.left, bounds.bottom));
+
+                            firebaseCorners = new Corners(points, new Size(picture.width(), picture.height()));
+                        }
+                        else {
+                            points.add(new Point(180.0, 320.0));
+                            points.add(new Point(900.0, 320.0));
+                            points.add(new Point(900.0, 1600.0));
+                            points.add(new Point(180.0, 1600.0));
+
+                            firebaseCorners = new Corners(points, new Size(picture.width(), picture.height()));
+                        }
+
+                        paper_rect.onCorners2Crop(firebaseCorners, picture.size());
+                        Glide.with(CropActivity.this).load(bitmap).into(paper);
+
+                    }
+                }).addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception e) {
+            }
+        });
+
+    }
+
+    public FirebaseVisionObjectDetector createFirebaseVisionObjectDetector(){
+        FirebaseVisionObjectDetectorOptions options =
+                new FirebaseVisionObjectDetectorOptions.Builder()
+                        .setDetectorMode(FirebaseVisionObjectDetectorOptions.SINGLE_IMAGE_MODE)
+                        .build();
+
+        FirebaseVisionObjectDetector objectDetector =
+                FirebaseVision.getInstance().getOnDeviceObjectDetector(options);
+
+        return objectDetector;
+    }
 
     private static int calculateInSampleSize(
             BitmapFactory.Options options, int reqWidth, int reqHeight) {

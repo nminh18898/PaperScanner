@@ -9,6 +9,7 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.content.res.Resources;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
 import android.graphics.Point;
@@ -58,6 +59,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -190,13 +192,8 @@ public class Camera2Fragment extends Fragment
         @Override
         public void onImageAvailable(ImageReader reader) {
             Image image = reader.acquireNextImage();
-
-
-            ByteBuffer buffer = image.getPlanes()[0].getBuffer();
-            byte[] bytes = new byte[buffer.remaining()];
-            buffer.get(bytes);
-
-            imageProcessor.processImage(bytes, image.getWidth(), image.getHeight());
+            imageProcessor.processImage(image);
+            getActivity().finish();
         }
     };
 
@@ -381,13 +378,18 @@ public class Camera2Fragment extends Fragment
                     continue;
                 }
 
+                Point displaySize = new Point();
+
+                //.getWindowManager().getDefaultDisplay().getSize(displaySize);
+                Display display = ((WindowManager) getActivity().getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay();
+                display.getRealSize(displaySize);
 
                 // For still image captures, we use the largest available size.
                 Size largest = Collections.max(
                         Arrays.asList(map.getOutputSizes(ImageFormat.JPEG)),
                         new CompareSizesByArea());
 
-                largest = new Size(4096, 2304);
+                //largest = new Size(4096, 2304);
 
                 mImageReader = ImageReader.newInstance(largest.getWidth(), largest.getHeight(),
                         ImageFormat.JPEG, /*maxImages*/2);
@@ -419,7 +421,6 @@ public class Camera2Fragment extends Fragment
 
                 /**
                  *
-
                 Point displaySize = new Point();
 
                 activity.getWindowManager().getDefaultDisplay().getSize(displaySize);
@@ -446,11 +447,12 @@ public class Camera2Fragment extends Fragment
 
                  */
 
-                Point displaySize = new Point();
+                /*Point displaySize = new Point();
 
                 //.getWindowManager().getDefaultDisplay().getSize(displaySize);
                 Display display = ((WindowManager) getActivity().getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay();
-                display.getRealSize(displaySize);
+                display.getRealSize(displaySize);*/
+
                 int rotatedPreviewWidth = width;
                 int rotatedPreviewHeight = height;
                 int maxPreviewWidth = displaySize.x;
@@ -504,6 +506,29 @@ public class Camera2Fragment extends Fragment
                     .show(getChildFragmentManager(), FRAGMENT_DIALOG);
         }
     }
+
+    private int getStatusBarHeight(){
+        Resources res = getActivity().getResources();
+        int resId = res.getIdentifier("status_bar_height", "dimen", "android");
+
+        if(resId > 0){
+            return res.getDimensionPixelSize(resId);
+        }
+        else {
+           return 0;
+        }
+
+    }
+
+   /* void getPictureSize(StreamConfigurationMap map){
+        List<Size> supportSize= Arrays.asList(map.getOutputSizes(ImageFormat.JPEG));
+        Collections.sort(supportSize, new CompareSizesByArea());
+        int statusBarHeight = getStatusBarHeight();
+
+        for(int i =supportSize.size() -1; i>=0; i--){
+            if()
+        }
+    }*/
 
     private void openCamera(int width, int height) {
         if (ContextCompat.checkSelfPermission(getActivity(), Manifest.permission.CAMERA)
@@ -810,6 +835,17 @@ public class Camera2Fragment extends Fragment
             // We cast here to ensure the multiplications won't overflow
             return Long.signum((long) lhs.getWidth() * lhs.getHeight() -
                     (long) rhs.getWidth() * rhs.getHeight());
+        }
+
+    }
+
+    static class CompareSizesByRatio implements Comparator<Size> {
+
+        @Override
+        public int compare(Size lhs, Size rhs) {
+            // We cast here to ensure the multiplications won't overflow
+            return (int) ((float) lhs.getWidth() / lhs.getHeight() -
+                    (float) rhs.getWidth() / rhs.getHeight());
         }
 
     }

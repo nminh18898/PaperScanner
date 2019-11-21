@@ -66,7 +66,9 @@
         android:layout_marginLeft="15dp"
         android:background="@drawable/bw_conversion_button"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/btnShare">
+        app:layout_constraintStart_toEndOf="@+id/btnShare"
+        android:textOn=""
+        android:textOff="">
 
     </ToggleButton>
 
@@ -80,6 +82,18 @@
         app:layout_constraintTop_toTopOf="parent">
 
     </ProgressBar>
+
+    <Button
+        android:id="@+id/btnRotate"
+        android:layout_width="@dimen/button_crop_activity"
+        android:layout_height="@dimen/button_crop_activity"
+        android:layout_gravity="right"
+        android:layout_margin="8dp"
+        android:background="@drawable/ic_rotate"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/btnBWConversion">
+
+    </Button>
 
 
 

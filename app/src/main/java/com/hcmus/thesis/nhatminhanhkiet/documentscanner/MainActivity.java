@@ -1,9 +1,12 @@
 package com.hcmus.thesis.nhatminhanhkiet.documentscanner;
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
@@ -23,6 +26,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.hcmus.thesis.nhatminhanhkiet.documentscanner.camera.CameraActivity;
 import com.hcmus.thesis.nhatminhanhkiet.documentscanner.crop.CropActivity;
+import com.hcmus.thesis.nhatminhanhkiet.documentscanner.processor.ImageProcessor;
 import com.hcmus.thesis.nhatminhanhkiet.documentscanner.view.ImageFullscreen;
 import com.hcmus.thesis.nhatminhanhkiet.documentscanner.view.ImageInfo;
 import com.hcmus.thesis.nhatminhanhkiet.documentscanner.view.ImageListAdapter;
@@ -47,7 +51,9 @@ public class MainActivity extends AppCompatActivity {
             Manifest.permission.WRITE_EXTERNAL_STORAGE,
             android.Manifest.permission.CAMERA
     };
+
     private static final int REQUEST_PERMISSION_CODE = 200;
+    private static final int REQUEST_IMPORT_PHOTO = 2;
 
     private static boolean isPermissionGranted = false;
 
@@ -147,6 +153,28 @@ public class MainActivity extends AppCompatActivity {
         return imageInfoList;
     }
 
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        Bitmap bitmap = null;
+
+        if(resultCode == Activity.RESULT_OK) {
+            switch (requestCode){
+                case REQUEST_IMPORT_PHOTO:
+                    if (data != null) {
+                        Uri uri = data.getData();
+                        ImageProcessor imageProcessor = new ImageProcessor(MainActivity.this);
+                        imageProcessor.processImage(uri);
+                    }
+                    break;
+            }
+        }
+        else {
+            Toast.makeText(this, getResources().getString(R.string.something_went_wrong), Toast.LENGTH_SHORT).show();
+        }
+
+    }
+
     private void createImageList() {
         imagePathList =  getImagePath(retrieveImageFile());
         imageInfoList = getImageInfo(imagePathList);
@@ -222,17 +250,21 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
 
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
+        switch (id) {
+            case R.id.action_import:
+                searchImage();
+                return true;
         }
-
         return super.onOptionsItemSelected(item);
+    }
+
+    public void searchImage() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("image/*");
+        startActivityForResult(intent, REQUEST_IMPORT_PHOTO);
     }
 
     public File[] retrieveImageFile(){

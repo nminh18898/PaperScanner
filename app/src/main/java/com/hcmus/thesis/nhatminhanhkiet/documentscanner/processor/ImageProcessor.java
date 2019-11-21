@@ -2,8 +2,11 @@ package com.hcmus.thesis.nhatminhanhkiet.documentscanner.processor;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.AssetFileDescriptor;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.media.Image;
+import android.net.Uri;
 import android.util.Log;
 
 import com.hcmus.thesis.nhatminhanhkiet.documentscanner.SourceManager;
@@ -11,7 +14,6 @@ import com.hcmus.thesis.nhatminhanhkiet.documentscanner.crop.CropActivity;
 
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
-import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfByte;
@@ -23,15 +25,19 @@ import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 public class ImageProcessor {
+
+    private static final int SCALE_HEIGHT = 100;
+    private static final long MEGABYTE = 1000000;
 
     Context context;
     public ImageProcessor(Context context) {
@@ -117,54 +123,12 @@ public class ImageProcessor {
     }
 
     public void processImage(Image image){
-
-        /*val pictureSize = p1?.parameters?.pictureSize
-        Log.i(TAG, "picture size: " + pictureSize.toString())
-        val mat = Mat(Size(pictureSize?.width?.toDouble() ?: 1920.toDouble(),
-                pictureSize?.height?.toDouble() ?: 1080.toDouble()), CvType.CV_8U)
-        mat.put(0, 0, p0)
-        val pic = Imgcodecs.imdecode(mat, Imgcodecs.CV_LOAD_IMAGE_UNCHANGED)
-        Core.rotate(pic, pic, Core.ROTATE_90_CLOCKWISE)
-        mat.release()
-        SourceManager.corners = processPicture(pic)
-        Imgproc.cvtColor(pic, pic, Imgproc.COLOR_RGB2BGRA)
-        SourceManager.pic = pic
-        context.startActivity(Intent(context, CropActivity::class.java))
-        busy = false*/
         ByteBuffer buffer = image.getPlanes()[0].getBuffer();
         byte[] bytes = new byte[buffer.remaining()];
         buffer.get(bytes);
 
-        //Mat mat = new Mat(new Size(image.getWidth(), image.getHeight()), CvType.CV_8U);
-        Mat mat = new Mat(new Size(image.getHeight(), image.getWidth()), CvType.CV_8U);
-        mat.put(0, 0, bytes);
-
-        Mat pic = Imgcodecs.imdecode(new MatOfByte(bytes), Imgcodecs.IMREAD_UNCHANGED);
-        //Mat pic = Imgcodecs.imdecode(mat, Imgcodecs.IMREAD_UNCHANGED);
-        //Core.rotate(pic, pic, Core.ROTATE_90_CLOCKWISE);
-        mat.release();
-        Corners corners = processPicture(pic);
-        Imgproc.cvtColor(pic, pic, Imgproc.COLOR_RGB2BGRA);
-        /*SourceManager sourceManager = new SourceManager();
-        sourceManager.Companion.setCorners(corners);
-        sourceManager.Companion.setPic(pic);*/
-    }
-
-    public void processImage(byte[] bytes, int width, int height){
-
-        /*val pictureSize = p1?.parameters?.pictureSize
-        Log.i(TAG, "picture size: " + pictureSize.toString())
-        val mat = Mat(Size(pictureSize?.width?.toDouble() ?: 1920.toDouble(),
-                pictureSize?.height?.toDouble() ?: 1080.toDouble()), CvType.CV_8U)
-        mat.put(0, 0, p0)
-        val pic = Imgcodecs.imdecode(mat, Imgcodecs.CV_LOAD_IMAGE_UNCHANGED)
-        Core.rotate(pic, pic, Core.ROTATE_90_CLOCKWISE)
-        mat.release()
-        SourceManager.corners = processPicture(pic)
-        Imgproc.cvtColor(pic, pic, Imgproc.COLOR_RGB2BGRA)
-        SourceManager.pic = pic
-        context.startActivity(Intent(context, CropActivity::class.java))
-        busy = false*/
+        int height = image.getHeight();
+        int width = image.getWidth();
 
         //Mat mat = new Mat(new Size(image.getWidth(), image.getHeight()), CvType.CV_8U);
         Mat mat = new Mat(new Size(height, width), CvType.CV_8U);
@@ -175,7 +139,7 @@ public class ImageProcessor {
         mat.release();
         Corners corners = processPicture(pic);
 
-        boolean isDuplicate = isCornersListDuplicates(corners);
+        //boolean isDuplicate = isCornersListDuplicates(corners);
 
         Imgproc.cvtColor(pic, pic, Imgproc.COLOR_RGB2BGRA);
         SourceManager sourceManager = new SourceManager();
@@ -186,17 +150,77 @@ public class ImageProcessor {
         context.startActivity(intent);
     }
 
+    public void processImage(Uri uri){
+        Bitmap bitmap = createBitmapFromUri(uri);
+        byte[] bytes = fromImageUriToByteArray(bitmap, uri);
 
-    public boolean isCornersListDuplicates(Corners corners)
+        int height = bitmap.getHeight();
+        int width = bitmap.getWidth();
+
+        Mat mat = new Mat(new Size(height, width), CvType.CV_8U);
+        mat.put(0, 0, bytes);
+
+        Mat pic = Imgcodecs.imdecode(new MatOfByte(bytes), Imgcodecs.IMREAD_UNCHANGED);
+        //Core.rotate(pic, pic, Core.ROTATE_90_CLOCKWISE);
+        mat.release();
+        Corners corners = processPicture(pic);
+
+        //boolean isDuplicate = isCornersListDuplicates(corners);
+
+        Imgproc.cvtColor(pic, pic, Imgproc.COLOR_RGB2BGRA);
+        SourceManager sourceManager = new SourceManager();
+        sourceManager.Companion.setCorners(corners);
+        sourceManager.Companion.setPic(pic);
+
+        Intent intent = new Intent(context, CropActivity.class);
+        context.startActivity(intent);
+    }
+
+    private byte[] fromImageUriToByteArray(Bitmap bitmap, Uri uri)
     {
-        final Set<Point> set = new HashSet<>();
 
-        for(int i=0;i<corners.corners.size();i++){
-            if(set.add(corners.corners.get(i)) == false){
-                return true;
-            }
+        //Scale down the bitmap if the size of file is greater than 4 MB
+        if (new File(uri.getPath()).length() >= MEGABYTE * 4)
+        {
+            final float densityMultiplier = context.getResources().getDisplayMetrics().density;
+
+            int h= (int) (SCALE_HEIGHT*densityMultiplier);
+            int w= (int) (h * bitmap.getWidth()/((double) bitmap.getHeight()));
+
+            bitmap  = Bitmap.createScaledBitmap(bitmap, w, h, true);
         }
-        return false;
+
+        //Change to byte array
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream);
+        byte[] byteArrayOfBitmap = stream.toByteArray();
+
+        return byteArrayOfBitmap;
+    }
+
+
+    Bitmap createBitmapFromUri(Uri uri){
+        try {
+            return getBitmap(uri);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private Bitmap getBitmap(Uri selectedImage) throws IOException{
+        AssetFileDescriptor fileDescriptor = null;
+        try {
+            fileDescriptor =
+                    context.getContentResolver().openAssetFileDescriptor(selectedImage, "r");
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        Bitmap original
+                = BitmapFactory.decodeFileDescriptor(
+                fileDescriptor.getFileDescriptor());
+
+        return original;
     }
 
     public Bitmap enhancePicture(Bitmap src){

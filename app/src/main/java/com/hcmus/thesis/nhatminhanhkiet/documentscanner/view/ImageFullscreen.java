@@ -9,6 +9,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.pdf.PdfDocument;
@@ -43,7 +44,7 @@ public class ImageFullscreen extends AppCompatActivity implements View.OnClickLi
     String filePath;
     ImageView imageView;
 
-    Button btnExportPdf, btnShare, btnDelete;
+    Button btnExportPdf, btnShare, btnDelete, btnRotate;
     ToggleButton btnBWConversion;
     ProgressBar pbLoading;
 
@@ -81,6 +82,10 @@ public class ImageFullscreen extends AppCompatActivity implements View.OnClickLi
 
         pbLoading = findViewById(R.id.pbLoading);
         pbLoading.setVisibility(View.GONE);
+
+        btnRotate = findViewById(R.id.btnRotate);
+        btnRotate.setOnClickListener(this);
+        btnRotate.setVisibility(View.GONE);
     }
 
     private void loadBitmapWithGlide(Bitmap bitmap){
@@ -115,7 +120,28 @@ public class ImageFullscreen extends AppCompatActivity implements View.OnClickLi
                 deleteFileByPath(filePath);
                 finish();
                 break;
+
+            case R.id.btnRotate:
+                rotatePhoto();
+                break;
         }
+    }
+
+    private void rotatePhoto() {
+        Bitmap bitmap =  ((BitmapDrawable) imageView.getDrawable()).getBitmap();
+        Matrix matrix = new Matrix();
+        //degrees+=90;
+        matrix.postRotate(90);
+
+        Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap,  bitmap.getWidth(), bitmap.getHeight(),true);
+        bitmap = Bitmap.createBitmap(scaledBitmap, 0, 0, scaledBitmap.getWidth(), scaledBitmap.getHeight(), matrix, true);
+
+        Glide.with(this).load(bitmap)
+                .diskCacheStrategy(DiskCacheStrategy.ALL)
+                .skipMemoryCache(true)
+                .into(imageView);
+
+        scaledBitmap.recycle();
     }
 
     public void deleteFileByPath(String filePath)
